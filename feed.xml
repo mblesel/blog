@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <generator uri="https://gohugo.io/" version="0.68.3">Hugo</generator><title type="html"><![CDATA[Parallel Computing and I/O Blog]]></title>
+    
+        <subtitle type="html"><![CDATA[We conduct research and development on parallel systems]]></subtitle>
+    
+    
+    
+            <link href="https://blog.parcio.de/" rel="alternate" type="text/html" title="HTML" />
+            <link href="https://blog.parcio.de/feed.xml" rel="self" type="application/atom+xml" title="Atom" />
+    <updated>2021-10-05T16:54:08+00:00</updated>
+    
+    <id>https://blog.parcio.de/</id>
+        
+        <entry>
+            <title type="html"><![CDATA[Performance of conditional operator vs. fabs]]></title>
+            <link href="https://blog.parcio.de/posts/2021/09/conditional-vs-fabs/?utm_source=atom_feed" rel="alternate" type="text/html"  hreflang="en" />
+            <id>https://blog.parcio.de/posts/2021/09/conditional-vs-fabs/</id>
+            
+                    <author>
+                        <name>Michael Kuhn</name>
+                    </author>
+            <published>2021-09-21T11:37:39+02:00</published>
+            <updated>2021-09-21T11:37:39+02:00</updated>
+            
+            
+            <content type="html"><![CDATA[<p>Today, we will take a look at potential performance problems when using the conditional operator <code>?:</code>.
+Specifically, we will use it to calculate a variable&rsquo;s absolute value and compare its performance with that of the function <code>fabs</code>.</p>
+<p>Assume the following numerical code written in C, where we need to calculate the absolute value of a <code>double</code> variable called <code>residuum</code>.<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>
+Since we want to perform this operation within the inner loop, we will have to keep performance overhead as low as possible.
+To reduce dependencies on math libraries and avoid function call overhead, we manually get the absolute value by first checking whether <code>residuum</code> is less than <code>0</code> and, if it is, negating it using the <code>-</code> operator.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="hl"><span class="lnt"> 7
+</span></span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">j</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="n">j</span><span class="o">++</span><span class="p">)</span>
+	<span class="p">{</span>
+		<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="n">k</span><span class="o">++</span><span class="p">)</span>
+		<span class="p">{</span>
+<span class="hl">			<span class="n">residuum</span> <span class="o">=</span> <span class="p">(</span><span class="n">residuum</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">?</span> <span class="o">-</span><span class="nl">residuum</span> <span class="p">:</span> <span class="n">residuum</span><span class="p">;</span>
+</span>		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>This looks easy enough and, in theory, should provide satisfactory performance.
+Just to be sure, let&rsquo;s do the same using the <code>fabs</code> function from the math library, which returns the absolute value of a floating-point number.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="hl"><span class="lnt"> 7
+</span></span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-c" data-lang="c"><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">j</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="n">j</span><span class="o">++</span><span class="p">)</span>
+	<span class="p">{</span>
+		<span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="mi">1000</span><span class="p">;</span> <span class="n">k</span><span class="o">++</span><span class="p">)</span>
+		<span class="p">{</span>
+<span class="hl">			<span class="n">residuum</span> <span class="o">=</span> <span class="n">fabs</span><span class="p">(</span><span class="n">residuum</span><span class="p">);</span>
+</span>		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>Let&rsquo;s compare the two implementations using <a class="gblog-markdown__link" href="https://github.com/sharkdp/hyperfine">hyperfine</a>.<sup id="fnref:2"><a href="#fn:2" class="footnote-ref" role="doc-noteref">2</a></sup></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="hl"><span class="lnt">11
+</span></span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-plain" data-lang="plain">Benchmark #1: ./conditional
+  Time (mean ± σ):     476.3 ms ±   0.4 ms    [User: 474.5 ms, System: 0.7 ms]
+  Range (min … max):   475.6 ms … 476.8 ms    10 runs
+
+Benchmark #2: ./fabs
+  Time (mean ± σ):     243.8 ms ±   2.0 ms    [User: 242.2 ms, System: 0.8 ms]
+  Range (min … max):   242.1 ms … 249.0 ms    12 runs
+
+Summary
+  &#39;./fabs&#39; ran
+<span class="hl">    1.95 ± 0.02 times faster than &#39;./conditional&#39;
+</span></code></pre></td></tr></table>
+</div>
+</div><p>As we can see, the <code>fabs</code> implementation ran faster by more than a factor of 1.9!
+Where does this massive performance difference come from?
+Let&rsquo;s use <code>perf stat</code> to analyze the two implementations in a bit more detail.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="hl"><span class="lnt"> 7
+</span></span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="hl"><span class="lnt">10
+</span></span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-plain" data-lang="plain">Performance counter stats for &#39;./conditional&#39;:
+
+           478,51 msec task-clock:u              #    0,998 CPUs utilized
+                0      context-switches:u        #    0,000 /sec
+                0      cpu-migrations:u          #    0,000 /sec
+               55      page-faults:u             #  114,940 /sec
+<span class="hl">    2.035.211.626      cycles:u                  #    4,253 GHz                      (83,28%)
+</span>        1.592.587      stalled-cycles-frontend:u #    0,08% frontend cycles idle     (83,28%)
+          223.899      stalled-cycles-backend:u  #    0,01% backend cycles idle      (83,28%)
+<span class="hl">    4.009.332.175      instructions:u            #    1,97  insn per cycle
+</span>                                                 #    0,00  stalled cycles per insn  (83,32%)
+    2.001.712.079      branches:u                #    4,183 G/sec                    (83,49%)
+        1.503.325      branch-misses:u           #    0,08% of all branches          (83,34%)
+
+      0,479296441 seconds time elapsed
+
+      0,474423000 seconds user
+      0,001996000 seconds sys
+</code></pre></td></tr></table>
+</div>
+</div><p>The most important metrics here are the number of instructions and the number of cycles.
+Our processor can run around 4,250,000,000 cycles per second, resulting in a runtime of 0.48 seconds to process the roughly 4,000,000,000 instructions at 1.97 instructions per cycle.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="hl"><span class="lnt"> 7
+</span></span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="hl"><span class="lnt">10
+</span></span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-plain" data-lang="plain">Performance counter stats for &#39;./fabs&#39;:
+
+           245,48 msec task-clock:u              #    0,997 CPUs utilized
+                0      context-switches:u        #    0,000 /sec
+                0      cpu-migrations:u          #    0,000 /sec
+               51      page-faults:u             #  207,757 /sec
+<span class="hl">    1.039.265.407      cycles:u                  #    4,234 GHz                      (83,31%)
+</span>        1.720.716      stalled-cycles-frontend:u #    0,17% frontend cycles idle     (83,30%)
+          356.067      stalled-cycles-backend:u  #    0,03% backend cycles idle      (83,30%)
+<span class="hl">    3.007.112.338      instructions:u            #    2,89  insn per cycle
+</span>                                                 #    0,00  stalled cycles per insn  (83,29%)
+    1.003.303.373      branches:u                #    4,087 G/sec                    (83,46%)
+        1.662.984      branch-misses:u           #    0,17% of all branches          (83,34%)
+
+      0,246272015 seconds time elapsed
+
+      0,243024000 seconds user
+      0,000977000 seconds sys
+</code></pre></td></tr></table>
+</div>
+</div><p>The reduction from 2,000,000,000 to 1,000,000,000 cycles corresponds to the performance improvement of 1.95.
+Using the <code>fabs</code> function reduced the number of instructions by roughly 25% and, at the same time, increased the number of instructions per cycle to 2.89 (a factor of 1.47).
+Getting rid of the conditional operator reduced the number of branches by half, allowing the processor to process more instructions per cycle.
+The conditional operator is more or less a short-hand version of the <code>if</code> statement and introduced a significant number of branches into our inner loop.</p>
+<p>Running three nested loops with 1,000 iterations each resulted in 1,000,000,000 inner loop iterations, that is, we saved one instruction per inner loop iteration.
+These branch and instruction differences can be checked in even more detail using <code>objdump -S</code>; this is left as an exercise for the reader.</p>
+<p>The magnitude of these performance differences is rather surprising and shows that it makes sense to check even seemingly simple code for potential performance problems.</p>
+<section class="footnotes" role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn:1" role="doc-endnote">
+<p>The code shown is only an excerpt, the full code is available <a class="gblog-markdown__link" href="/code/2021/09/conditional-vs-fabs.c">here</a>. It was compiled with GCC 11.2 using the <code>-O2 -Wall -Wextra -Wpedantic</code> flags and the <code>-lm</code> library. <a href="#fnref:1" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a></p>
+</li>
+<li id="fn:2" role="doc-endnote">
+<p>hyperfine performs a statistical performance analysis. It runs the provided commands multiple times to reduce the influence of random errors and calculates derived metrics such as the mean and standard deviation. <a href="#fnref:2" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a></p>
+</li>
+</ol>
+</section>]]></content>
+            
+                 
+                    
+                         
+                        
+                            
+                             
+                                <category scheme="https://blog.parcio.de/authors/michael.kuhn" term="michael.kuhn" label="michael.kuhn" />
+                            
+                        
+                    
+                 
+                    
+                         
+                        
+                            
+                             
+                                <category scheme="https://blog.parcio.de/tags/Efficiency" term="Efficiency" label="Efficiency" />
+                            
+                        
+                    
+                
+            
+        </entry>
+    
+</feed>
